@@ -1,25 +1,10 @@
--- Banco de dados do Sistema de Gestão de Condomínio
--- Estrutura baseada diretamente no app.js do projeto.
--- Os nomes e dados abaixo correspondem aos objetos utilizados pelo JavaScript.
--- Compatível com MySQL/MariaDB.
-
-CREATE DATABASE IF NOT EXISTS sistema_condominio
-    CHARACTER SET utf8mb4
-    COLLATE utf8mb4_unicode_ci;
-
+DROP DATABASE IF EXISTS sistema_condominio;
+CREATE DATABASE sistema_condominio;
 USE sistema_condominio;
 
-SET FOREIGN_KEY_CHECKS = 0;
-
-DROP TABLE IF EXISTS pagamentos;
-DROP TABLE IF EXISTS manutencoes;
-DROP TABLE IF EXISTS tipos_manutencao;
-DROP TABLE IF EXISTS moradores;
-DROP TABLE IF EXISTS referencias;
-DROP TABLE IF EXISTS apartamentos;
-DROP TABLE IF EXISTS blocos;
-
-SET FOREIGN_KEY_CHECKS = 1;
+-- =========================================================
+-- TABELAS
+-- =========================================================
 
 CREATE TABLE blocos (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -90,7 +75,6 @@ CREATE TABLE manutencoes (
 
 -- =========================================================
 -- DADOS INICIAIS
--- Correspondem ao objeto "seed" do app.js.
 -- =========================================================
 
 INSERT INTO blocos (id, codBloco, descricaoBloco, quantidadeApts) VALUES
@@ -101,8 +85,7 @@ INSERT INTO apartamentos (id, numeroApto, blocoId, vagasGaragem) VALUES
 (1, '101', 1, NULL),
 (2, '201', 2, NULL);
 
--- O projeto inicia moradores vazio.
--- INSERT INTO moradores (...) não é necessário neste momento.
+-- O projeto inicia moradores vazio
 
 INSERT INTO referencias
     (id, mesReferencia, anoReferencia, valorCondominio, vencimento)
@@ -118,4 +101,8 @@ INSERT INTO tipos_manutencao (id, descricao) VALUES
 (2, 'Hidráulica'),
 (3, 'Pintura');
 
--- O projeto inicia manutenções vazias.
+-- O projeto inicia manutenções vazias,
+-- mas, com três tipos pré definidos inicialmente.
+-- 1 Elétrica
+-- 2 Hidráulica
+-- 3 Pintura
