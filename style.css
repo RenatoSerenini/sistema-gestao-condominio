@@ -1,0 +1,37 @@
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f1f1f1;color:#171717}
+.topbar{background:#222;color:#fff;padding:14px 22px;display:flex;align-items:center;gap:30px;position:sticky;top:0;z-index:10}
+.brand{font-size:25px;font-weight:700}
+nav{display:flex;gap:7px;flex-wrap:wrap}
+nav button{background:#444;color:#fff;border:0;border-radius:4px;padding:8px 11px;cursor:pointer}
+nav button:hover{background:#666}
+main{max-width:1100px;margin:28px auto;padding:0 18px}
+.card{background:#e9e9e9;border:1px solid #ccc;border-radius:4px;padding:25px;box-shadow:0 2px 7px #bbb}
+h1{font-size:32px;margin:0 0 24px} h2{font-size:24px;margin:0 0 22px}
+.dashboard{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px}
+.tile{background:#fff;border:1px solid #ccc;padding:20px;border-radius:5px;cursor:pointer}
+.tile h3{margin:0 0 10px}.tile p{margin:0;color:#666}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+input,select{padding:10px;border:1px solid #aaa;border-radius:4px;background:#fff;font:inherit}
+input:disabled,select:disabled{background:#eee}
+.search{flex:1;min-width:220px}
+button{font:inherit;cursor:pointer}
+.btn{padding:10px 16px;border:1px solid #aaa;border-radius:4px;background:#fff}
+.btn.primary{background:#e2e2e2;font-weight:700}.btn.danger{background:#eee}
+.btn:hover{filter:brightness(.95)}
+table{width:100%;border-collapse:collapse;background:#fff}
+th,td{border:1px solid #777;padding:10px;text-align:left}
+th{background:#ddd}
+.action{padding:5px 9px;margin-right:5px;border:0;background:transparent;text-decoration:underline}
+.form-grid{display:grid;grid-template-columns:180px 1fr;gap:12px;align-items:center;max-width:760px}
+.form-grid label{font-weight:700}.full{grid-column:1/-1}
+.radio-group{display:flex;gap:20px;align-items:center}
+.form-actions{margin-top:25px;display:flex;gap:12px}
+.hint{color:#666;font-size:14px}
+.empty{text-align:center;padding:25px;color:#666}
+.toast{position:fixed;right:20px;bottom:20px;background:#222;color:#fff;padding:13px 18px;border-radius:5px;display:none;z-index:30}
+.toast.show{display:block}
+.modal{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;z-index:20;padding:20px}
+.modal.hidden{display:none}.modal-box{background:#fff;border-radius:6px;padding:24px;max-width:480px;width:100%}
+.stat{font-size:30px;font-weight:700}
+@media(max-width:650px){.topbar{display:block}.topbar nav{margin-top:10px}.form-grid{grid-template-columns:1fr}.full{grid-column:auto}}
