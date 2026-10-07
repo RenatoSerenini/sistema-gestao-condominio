@@ -1,5 +1,4 @@
 const mysql = require("mysql2");
-<<<<<<< HEAD
 
 const conexao = mysql.createConnection({
     host: "localhost",
@@ -7,8 +6,6 @@ const conexao = mysql.createConnection({
     password: "root",
     database: "sistema_condominio"
 });
-=======
->>>>>>> b587842 (corrigindo estrutura pt2)
 
 const conexao = mysql.createConnection({
     host: "localhost",
@@ -28,8 +25,4 @@ conexao.connect(function(erro) {
 
 });
 
-<<<<<<< HEAD
 module.exports = conexao;
-=======
-module.exports = conexao;
->>>>>>> b587842 (corrigindo estrutura pt2)
