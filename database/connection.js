@@ -7,13 +7,6 @@ const conexao = mysql.createConnection({
     database: "sistema_condominio"
 });
 
-const conexao = mysql.createConnection({
-    host: "localhost",
-    user: "root",
-    password: "root",
-    database: "sistema_condominio"
-});
-
 conexao.connect(function(erro) {
 
     if (erro) {
