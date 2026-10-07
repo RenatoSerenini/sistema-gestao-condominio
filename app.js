@@ -1,13 +1,7 @@
-/* =========================================================
-   SISTEMA DE GESTÃO DE CONDOMÍNIO
-   Frontend: HTML/CSS/JavaScript
-   Backend: Node.js + Express + body-parser + mysql2
-   ========================================================= */
+let app = document.getElementById("app");
+let nav = document.getElementById("nav");
 
-const app = document.getElementById('app');
-const nav = document.getElementById('nav');
-
-const db = {
+let db = {
     blocos: [],
     apartamentos: [],
     moradores: [],
@@ -17,681 +11,1538 @@ const db = {
     manutencoes: []
 };
 
-/* =========================================================
-   API
-   ========================================================= */
+/* COMUNICACAO COM O SERVIDOR */
 
-async function api(url, options = {}) {
-    const response = await fetch(url, {
-        headers: { 'Content-Type': 'application/json' },
-        ...options
-    });
+function api(url, metodo, dados, callback){
 
-    const data = await response.json().catch(() => ({}));
+    let opcoes = {
+        method: metodo,
+        headers: {
+            "Content-Type": "application/json"
+        }
+    };
 
-    if (!response.ok) {
-        throw new Error(data.error || 'Ocorreu um erro na comunicação com o servidor.');
+    if(dados){
+        opcoes.body = JSON.stringify(dados);
     }
 
-    return data;
+    fetch(url, opcoes)
+    .then(function(resposta){
+
+        return resposta.json().then(function(resultado){
+
+            if(!resposta.ok){
+                callback(new Error(resultado.error || "Erro no servidor"));
+            }else{
+                callback(null, resultado);
+            }
+
+        });
+
+    })
+    .catch(function(erro){
+        callback(erro);
+    });
+
 }
 
-async function carregarDados() {
-    const [blocos, apartamentos, moradores, referencias, pagamentos, tipos, manutencoes] = await Promise.all([
-        api('/api/blocos'),
-        api('/api/apartamentos'),
-        api('/api/moradores'),
-        api('/api/referencias'),
-        api('/api/pagamentos'),
-        api('/api/tipos-manutencao'),
-        api('/api/manutencoes')
-    ]);
+function carregarDados(callback){
 
-    db.blocos = blocos;
-    db.apartamentos = apartamentos;
-    db.moradores = moradores;
-    db.referencias = referencias;
-    db.pagamentos = pagamentos;
-    db.tiposManutencao = tipos.map(item => item.descricao);
-    db.manutencoes = manutencoes;
+    api("/api/blocos", "GET", null, function(erro, blocos){
+
+        if(erro){
+            callback(erro);
+            return;
+        }
+
+        db.blocos = blocos;
+
+        api("/api/apartamentos", "GET", null, function(erro, apartamentos){
+
+            if(erro){
+                callback(erro);
+                return;
+            }
+
+            db.apartamentos = apartamentos;
+
+            api("/api/moradores", "GET", null, function(erro, moradores){
+
+                if(erro){
+                    callback(erro);
+                    return;
+                }
+
+                db.moradores = moradores;
+
+                api("/api/referencias", "GET", null, function(erro, referencias){
+
+                    if(erro){
+                        callback(erro);
+                        return;
+                    }
+
+                    db.referencias = referencias;
+
+                    api("/api/pagamentos", "GET", null, function(erro, pagamentos){
+
+                        if(erro){
+                            callback(erro);
+                            return;
+                        }
+
+                        db.pagamentos = pagamentos;
+
+                        api("/api/tipos-manutencao", "GET", null, function(erro, tipos){
+
+                            if(erro){
+                                callback(erro);
+                                return;
+                            }
+
+                            db.tiposManutencao = [];
+
+                            for(let i = 0; i < tipos.length; i++){
+                                db.tiposManutencao.push(tipos[i].descricao);
+                            }
+
+                            api("/api/manutencoes", "GET", null, function(erro, manutencoes){
+
+                                if(erro){
+                                    callback(erro);
+                                    return;
+                                }
+
+                                db.manutencoes = manutencoes;
+                                callback(null);
+
+                            });
+
+                        });
+
+                    });
+
+                });
+
+            });
+
+        });
+
+    });
+
 }
 
-/* =========================================================
-   FUNÇÕES AUXILIARES
-   ========================================================= */
+/* FUNCOES */
 
-function esc(value = '') {
-    return String(value).replace(/[&<>"']/g, char => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-    }[char]));
+function esc(valor){
+
+    if(valor === null || valor === undefined){
+        return "";
+    }
+
+    let texto = String(valor);
+
+    texto = texto.replace(/&/g, "&amp;");
+    texto = texto.replace(/</g, "&lt;");
+    texto = texto.replace(/>/g, "&gt;");
+    texto = texto.replace(/"/g, "&quot;");
+    texto = texto.replace(/'/g, "&#39;");
+
+    return texto;
 }
 
-function toast(message) {
-    const element = document.getElementById('toast');
-    element.textContent = message;
-    element.classList.add('show');
-    setTimeout(() => element.classList.remove('show'), 2300);
+function toast(mensagem){
+
+    let elemento = document.getElementById("toast");
+
+    elemento.textContent = mensagem;
+    elemento.classList.add("show");
+
+    setTimeout(function(){
+        elemento.classList.remove("show");
+    }, 2300);
+
 }
 
-function confirmBox(message, callback) {
-    if (confirm(message)) callback();
+function mostrarErro(erro){
+
+    console.log(erro);
+
+    if(erro && erro.message){
+        toast(erro.message);
+    }else{
+        toast("Erro inesperado.");
+    }
+
 }
 
-function blocoName(id) {
-    return db.blocos.find(item => item.id == id)?.descricaoBloco || '—';
+function blocoName(id){
+
+    for(let i = 0; i < db.blocos.length; i++){
+
+        if(db.blocos[i].id == id){
+            return db.blocos[i].descricaoBloco;
+        }
+
+    }
+
+    return "—";
 }
 
-function aptByNumber(number) {
-    return db.apartamentos.find(item => String(item.numeroApto) === String(number));
+function aptByNumber(numero){
+
+    for(let i = 0; i < db.apartamentos.length; i++){
+
+        if(String(db.apartamentos[i].numeroApto) === String(numero)){
+            return db.apartamentos[i];
+        }
+
+    }
+
+    return null;
 }
 
-function showError(error) {
-    console.error(error);
-    toast(error.message || 'Erro inesperado.');
+function pegarBloco(id){
+
+    for(let i = 0; i < db.blocos.length; i++){
+
+        if(db.blocos[i].id == id){
+            return db.blocos[i];
+        }
+
+    }
+
+    return null;
 }
 
-/* =========================================================
-   NAVEGAÇÃO E ESTRUTURA
-   ========================================================= */
+function pegarApartamento(id){
 
-function renderNav() {
-    nav.innerHTML = [
-        'Início',
-        'Blocos',
-        'Apartamentos',
-        'Moradores',
-        'Pagamento',
-        'Manutenção'
-    ].map(page => `<button onclick="route('${page}')">${page}</button>`).join('');
+    for(let i = 0; i < db.apartamentos.length; i++){
+
+        if(db.apartamentos[i].id == id){
+            return db.apartamentos[i];
+        }
+
+    }
+
+    return null;
 }
 
-function route(page) {
+function pegarMorador(id){
+
+    for(let i = 0; i < db.moradores.length; i++){
+
+        if(db.moradores[i].id == id){
+            return db.moradores[i];
+        }
+
+    }
+
+    return null;
+}
+
+/* MENU */
+
+function renderNav(){
+
+    nav.innerHTML = `
+        <button onclick="route('Início')">Início</button>
+        <button onclick="route('Blocos')">Blocos</button>
+        <button onclick="route('Apartamentos')">Apartamentos</button>
+        <button onclick="route('Moradores')">Moradores</button>
+        <button onclick="route('Pagamento')">Pagamento</button>
+        <button onclick="route('Manutenção')">Manutenção</button>
+    `;
+
+}
+
+function route(pagina){
+
     renderNav();
 
-    if (page === 'Início') home();
-    if (page === 'Blocos') blocos();
-    if (page === 'Apartamentos') apartamentos();
-    if (page === 'Moradores') moradores();
-    if (page === 'Pagamento') pagamento();
-    if (page === 'Manutenção') manutencaoMenu();
+    if(pagina === "Início"){
+        home();
+    }
+
+    if(pagina === "Blocos"){
+        blocos("");
+    }
+
+    if(pagina === "Apartamentos"){
+        apartamentos("");
+    }
+
+    if(pagina === "Moradores"){
+        moradores("");
+    }
+
+    if(pagina === "Pagamento"){
+        pagamento();
+    }
+
+    if(pagina === "Manutenção"){
+        manutencaoMenu();
+    }
+
 }
 
-function shell(title, body) {
-    app.innerHTML = `<section class="card"><h1>${title}</h1>${body}</section>`;
+function shell(titulo, conteudo){
+
+    app.innerHTML = `
+        <section class="card">
+            <h1>${titulo}</h1>
+            ${conteudo}
+        </section>
+    `;
+
 }
 
-/* =========================================================
-   INÍCIO
-   ========================================================= */
+/* INICIO */
 
-function home() {
-    const tiles = [
-        ['Blocos', db.blocos.length, 'Pesquisar e manter blocos'],
-        ['Apartamentos', db.apartamentos.length, 'Pesquisar e manter apartamentos'],
-        ['Moradores', db.moradores.length, 'Pesquisar e manter moradores'],
-        ['Pagamento', db.pagamentos.length, 'Registrar pagamentos'],
-        ['Manutenção', db.manutencoes.length, 'Tipos e registros de manutenção']
-    ];
+function home(){
 
-    shell(
-        'Sistema de Gestão de Condomínio',
-        `<div class="dashboard">${tiles.map(tile => `
-            <div class="tile" onclick="route('${tile[0]}')">
-                <h3>${tile[0]}</h3>
-                <div class="stat">${tile[1]}</div>
-                <p>${tile[2]}</p>
+    let conteudo = `
+        <div class="dashboard">
+
+            <div class="tile" onclick="route('Blocos')">
+                <h3>Blocos</h3>
+                <div class="stat">${db.blocos.length}</div>
+                <p>Pesquisar e manter blocos</p>
             </div>
-        `).join('')}</div>
-        <p class="hint" style="margin-top:22px">Dados persistidos no banco MySQL através da API Node.js.</p>`
-    );
+
+            <div class="tile" onclick="route('Apartamentos')">
+                <h3>Apartamentos</h3>
+                <div class="stat">${db.apartamentos.length}</div>
+                <p>Pesquisar e manter apartamentos</p>
+            </div>
+
+            <div class="tile" onclick="route('Moradores')">
+                <h3>Moradores</h3>
+                <div class="stat">${db.moradores.length}</div>
+                <p>Pesquisar e manter moradores</p>
+            </div>
+
+            <div class="tile" onclick="route('Pagamento')">
+                <h3>Pagamento</h3>
+                <div class="stat">${db.pagamentos.length}</div>
+                <p>Registrar pagamentos</p>
+            </div>
+
+            <div class="tile" onclick="route('Manutenção')">
+                <h3>Manutenção</h3>
+                <div class="stat">${db.manutencoes.length}</div>
+                <p>Tipos e registros de manutenção</p>
+            </div>
+
+        </div>
+
+        <p class="hint" style="margin-top:22px">
+            Dados persistidos no banco MySQL através da API Node.js.
+        </p>
+    `;
+
+    shell("Sistema de Gestão de Condomínio", conteudo);
+
 }
 
-/* =========================================================
-   BLOCOS
-   ========================================================= */
+/* BLOCOS */
 
-function blocos(filter = '') {
-    const rows = db.blocos.filter(item => `${item.codBloco} ${item.descricaoBloco}`
-        .toLowerCase()
-        .includes(filter.toLowerCase()));
+function blocos(filtro){
 
-    shell(
-        'Pesquisar Bloco',
-        `<div class="toolbar">
-            <input class="search" id="q" placeholder="Pesquisa" value="${esc(filter)}" oninput="blocos(this.value)">
-            <button class="btn primary" onclick="blocoForm('novo')">Novo bloco</button>
+    let saida = "";
+
+    for(let i = 0; i < db.blocos.length; i++){
+
+        let bloco = db.blocos[i];
+
+        let texto = bloco.codBloco + " " + bloco.descricaoBloco;
+
+        if(texto.toLowerCase().includes(filtro.toLowerCase())){
+
+            saida += `
+                <tr>
+                    <td>${bloco.codBloco}</td>
+
+                    <td onclick="blocoForm('consultar', ${bloco.id})" style="cursor:pointer">
+                        ${esc(bloco.descricaoBloco)}
+                    </td>
+
+                    <td>${bloco.quantidadeApts}</td>
+
+                    <td>
+                        <button class="action" onclick="blocoForm('alterar', ${bloco.id})">Alterar</button>
+                        <button class="action" onclick="delBloco(${bloco.id})">Excluir</button>
+                    </td>
+                </tr>
+            `;
+
+        }
+
+    }
+
+    if(saida === ""){
+        saida = `<tr><td colspan="4" class="empty">Nenhum bloco encontrado.</td></tr>`;
+    }
+
+    let conteudo = `
+        <div class="toolbar">
+            <input class="search" placeholder="Pesquisa" value="${esc(filtro)}" oninput="blocos(this.value)">
+            <button class="btn primary" onclick="blocoForm('novo', 0)">Novo bloco</button>
             <button class="btn" onclick="route('Início')">Voltar</button>
         </div>
+
         <table>
             <thead>
-                <tr><th>Código</th><th>Descrição</th><th>Quantidade de apartamentos</th><th>Ações</th></tr>
+                <tr>
+                    <th>Código</th>
+                    <th>Descrição</th>
+                    <th>Quantidade de apartamentos</th>
+                    <th>Ações</th>
+                </tr>
             </thead>
+
             <tbody>
-                ${rows.map(item => `
-                    <tr>
-                        <td>${item.codBloco}</td>
-                        <td onclick="blocoForm('consultar', ${item.id})" style="cursor:pointer">${esc(item.descricaoBloco)}</td>
-                        <td>${item.quantidadeApts}</td>
-                        <td>
-                            <button class="action" onclick="blocoForm('alterar', ${item.id})">Alterar</button>
-                            <button class="action" onclick="delBloco(${item.id})">Excluir</button>
-                        </td>
-                    </tr>
-                `).join('') || '<tr><td colspan="4" class="empty">Nenhum bloco encontrado.</td></tr>'}
+                ${saida}
             </tbody>
-        </table>`
-    );
+        </table>
+    `;
+
+    shell("Pesquisar Bloco", conteudo);
+
 }
 
-function blocoForm(mode, id) {
-    const bloco = db.blocos.find(item => item.id == id) || {
-        codBloco: '',
-        descricaoBloco: '',
-        quantidadeApts: ''
-    };
-    const readOnly = mode === 'consultar';
-    const title = mode === 'novo' ? 'Manter Bloco' : mode === 'alterar' ? 'Alterar Bloco' : 'Consultar Bloco';
+function blocoForm(modo, id){
 
-    shell(
-        title,
-        `<div class="form-grid">
+    let bloco = pegarBloco(id);
+
+    if(!bloco){
+        bloco = {
+            codBloco: "",
+            descricaoBloco: "",
+            quantidadeApts: ""
+        };
+    }
+
+    let desabilitado = "";
+
+    if(modo === "consultar"){
+        desabilitado = "disabled";
+    }
+
+    let titulo = "Manter Bloco";
+
+    if(modo === "alterar"){
+        titulo = "Alterar Bloco";
+    }
+
+    if(modo === "consultar"){
+        titulo = "Consultar Bloco";
+    }
+
+    let botaoSalvar = "";
+
+    if(modo !== "consultar"){
+
+        let nomeBotao = "Salvar";
+
+        if(modo === "novo"){
+            nomeBotao = "Cadastrar";
+        }
+
+        botaoSalvar = `
+            <button class="btn primary" onclick="saveBloco(${id})">
+                ${nomeBotao}
+            </button>
+        `;
+
+    }
+
+    let conteudo = `
+        <div class="form-grid">
+
             <label>Descrição:</label>
-            <input id="descricao" value="${esc(bloco.descricaoBloco)}" ${readOnly ? 'disabled' : ''}>
+            <input id="descricao" value="${esc(bloco.descricaoBloco)}" ${desabilitado}>
 
             <label>Quantidade aptos:</label>
-            <input id="qtd" type="number" min="1" value="${esc(bloco.quantidadeApts)}" ${readOnly ? 'disabled' : ''}>
+            <input id="qtd" type="number" min="1" value="${esc(bloco.quantidadeApts)}" ${desabilitado}>
 
             <div class="full form-actions">
-                ${!readOnly ? `<button class="btn primary" onclick="saveBloco(${id || 0})">${mode === 'novo' ? 'Cadastrar' : 'Salvar'}</button>` : ''}
-                <button class="btn" onclick="blocos()">Voltar</button>
+                ${botaoSalvar}
+                <button class="btn" onclick="blocos('')">Voltar</button>
             </div>
-        </div>`
-    );
+
+        </div>
+    `;
+
+    shell(titulo, conteudo);
+
 }
 
-async function saveBloco(id) {
-    const descricao = document.getElementById('descricao').value.trim();
-    const quantidadeApts = document.getElementById('qtd').value;
+function saveBloco(id){
 
-    if (!descricao || !quantidadeApts) {
-        toast('Não pode ficar em branco');
+    let descricao = document.getElementById("descricao").value.trim();
+    let quantidade = document.getElementById("qtd").value;
+
+    if(!descricao || !quantidade){
+        toast("Não pode ficar em branco");
         return;
     }
 
-    try {
-        await api(id ? `/api/blocos/${id}` : '/api/blocos', {
-            method: id ? 'PUT' : 'POST',
-            body: JSON.stringify({ descricaoBloco: descricao, quantidadeApts: Number(quantidadeApts) })
-        });
-        await carregarDados();
-        toast('Dados salvos com sucesso');
-        blocos();
-    } catch (error) {
-        showError(error);
+    let metodo = "POST";
+    let url = "/api/blocos";
+
+    if(id){
+        metodo = "PUT";
+        url = "/api/blocos/" + id;
     }
-}
 
-async function delBloco(id) {
-    confirmBox('Deseja excluir este bloco?', async () => {
-        try {
-            await api(`/api/blocos/${id}`, { method: 'DELETE' });
-            await carregarDados();
-            blocos();
-        } catch (error) {
-            showError(error);
+    let dados = {
+        descricaoBloco: descricao,
+        quantidadeApts: Number(quantidade)
+    };
+
+    api(url, metodo, dados, function(erro){
+
+        if(erro){
+            mostrarErro(erro);
+            return;
         }
+
+        carregarDados(function(erro){
+
+            if(erro){
+                mostrarErro(erro);
+                return;
+            }
+
+            toast("Dados salvos com sucesso");
+            blocos("");
+
+        });
+
     });
+
 }
 
-/* =========================================================
-   APARTAMENTOS
-   ========================================================= */
+function delBloco(id){
 
-function apartamentos(filter = '') {
-    const rows = db.apartamentos.filter(item => `${blocoName(item.blocoId)} ${item.numeroApto}`
-        .toLowerCase()
-        .includes(filter.toLowerCase()));
+    if(!confirm("Deseja excluir este bloco?")){
+        return;
+    }
 
-    shell(
-        'Pesquisar Apartamento',
-        `<div class="toolbar">
-            <input class="search" placeholder="Pesquisa" value="${esc(filter)}" oninput="apartamentos(this.value)">
-            <button class="btn primary" onclick="aptForm('novo')">Novo Apartamento</button>
+    api("/api/blocos/" + id, "DELETE", null, function(erro){
+
+        if(erro){
+            mostrarErro(erro);
+            return;
+        }
+
+        carregarDados(function(erro){
+
+            if(erro){
+                mostrarErro(erro);
+                return;
+            }
+
+            blocos("");
+
+        });
+
+    });
+
+}
+
+/* APARTAMENTOS */
+
+function apartamentos(filtro){
+
+    let saida = "";
+
+    for(let i = 0; i < db.apartamentos.length; i++){
+
+        let apartamento = db.apartamentos[i];
+
+        let texto = blocoName(apartamento.blocoId) + " " + apartamento.numeroApto;
+
+        if(texto.toLowerCase().includes(filtro.toLowerCase())){
+
+            saida += `
+                <tr>
+
+                    <td>${esc(blocoName(apartamento.blocoId))}</td>
+
+                    <td onclick="aptForm('consultar', ${apartamento.id})" style="cursor:pointer">
+                        ${esc(apartamento.numeroApto)}
+                    </td>
+
+                    <td>
+                        <button class="action" onclick="aptForm('alterar', ${apartamento.id})">Alterar</button>
+                        <button class="action" onclick="delApt(${apartamento.id})">Excluir</button>
+                    </td>
+
+                </tr>
+            `;
+
+        }
+
+    }
+
+    if(saida === ""){
+        saida = `<tr><td colspan="3" class="empty">Nenhum apartamento encontrado.</td></tr>`;
+    }
+
+    let conteudo = `
+        <div class="toolbar">
+            <input class="search" placeholder="Pesquisa" value="${esc(filtro)}" oninput="apartamentos(this.value)">
+            <button class="btn primary" onclick="aptForm('novo', 0)">Novo Apartamento</button>
             <button class="btn" onclick="route('Início')">Voltar</button>
         </div>
+
         <table>
-            <thead><tr><th>Bloco</th><th>Número do Apartamento</th><th>Ações</th></tr></thead>
+            <thead>
+                <tr>
+                    <th>Bloco</th>
+                    <th>Número do Apartamento</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+
             <tbody>
-                ${rows.map(item => `
-                    <tr>
-                        <td>${esc(blocoName(item.blocoId))}</td>
-                        <td onclick="aptForm('consultar', ${item.id})" style="cursor:pointer">${esc(item.numeroApto)}</td>
-                        <td>
-                            <button class="action" onclick="aptForm('alterar', ${item.id})">Alterar</button>
-                            <button class="action" onclick="delApt(${item.id})">Excluir</button>
-                        </td>
-                    </tr>
-                `).join('') || '<tr><td colspan="3" class="empty">Nenhum apartamento encontrado.</td></tr>'}
+                ${saida}
             </tbody>
-        </table>`
-    );
+        </table>
+    `;
+
+    shell("Pesquisar Apartamento", conteudo);
+
 }
 
-function aptForm(mode, id) {
-    const apartamento = db.apartamentos.find(item => item.id == id) || {
-        blocoId: '',
-        numeroApto: ''
-    };
-    const readOnly = mode === 'consultar';
-    const title = mode === 'novo' ? 'Cadastrar Apartamento' : mode === 'alterar' ? 'Alterar Apartamento' : 'Consultar Apartamento';
+function aptForm(modo, id){
 
-    shell(
-        title,
-        `<div class="form-grid">
+    let apartamento = pegarApartamento(id);
+
+    if(!apartamento){
+        apartamento = {
+            blocoId: "",
+            numeroApto: ""
+        };
+    }
+
+    let desabilitado = "";
+
+    if(modo === "consultar"){
+        desabilitado = "disabled";
+    }
+
+    let titulo = "Cadastrar Apartamento";
+
+    if(modo === "alterar"){
+        titulo = "Alterar Apartamento";
+    }
+
+    if(modo === "consultar"){
+        titulo = "Consultar Apartamento";
+    }
+
+    let opcoes = "";
+
+    for(let i = 0; i < db.blocos.length; i++){
+
+        let selecionado = "";
+
+        if(db.blocos[i].id == apartamento.blocoId){
+            selecionado = "selected";
+        }
+
+        opcoes += `
+            <option value="${db.blocos[i].id}" ${selecionado}>
+                ${esc(db.blocos[i].descricaoBloco)}
+            </option>
+        `;
+
+    }
+
+    let botaoSalvar = "";
+
+    if(modo !== "consultar"){
+
+        let textoBotao = "Salvar";
+
+        if(modo === "novo"){
+            textoBotao = "Cadastrar";
+        }
+
+        botaoSalvar = `
+            <button class="btn primary" onclick="saveApt(${id})">
+                ${textoBotao}
+            </button>
+        `;
+
+    }
+
+    let conteudo = `
+        <div class="form-grid">
+
             <label>Bloco:</label>
-            <select id="bloco" ${readOnly ? 'disabled' : ''}>
-                ${db.blocos.map(bloco => `<option value="${bloco.id}" ${bloco.id == apartamento.blocoId ? 'selected' : ''}>${esc(bloco.descricaoBloco)}</option>`).join('')}
+            <select id="bloco" ${desabilitado}>
+                ${opcoes}
             </select>
 
             <label>Número do Apartamento:</label>
-            <input id="numero" value="${esc(apartamento.numeroApto)}" ${readOnly ? 'disabled' : ''}>
+            <input id="numero" value="${esc(apartamento.numeroApto)}" ${desabilitado}>
 
             <div class="full form-actions">
-                ${!readOnly ? `<button class="btn primary" onclick="saveApt(${id || 0})">${mode === 'novo' ? 'Cadastrar' : 'Salvar'}</button>` : ''}
-                <button class="btn" onclick="apartamentos()">Voltar</button>
+                ${botaoSalvar}
+                <button class="btn" onclick="apartamentos('')">Voltar</button>
             </div>
-        </div>`
-    );
+
+        </div>
+    `;
+
+    shell(titulo, conteudo);
+
 }
 
-async function saveApt(id) {
-    const blocoId = Number(document.getElementById('bloco').value);
-    const numeroApto = document.getElementById('numero').value.trim();
+function saveApt(id){
 
-    if (!numeroApto) {
-        toast('Número do apartamento é obrigatório');
+    let blocoId = Number(document.getElementById("bloco").value);
+    let numeroApto = document.getElementById("numero").value.trim();
+
+    if(!numeroApto){
+        toast("Número do apartamento é obrigatório");
         return;
     }
 
-    try {
-        await api(id ? `/api/apartamentos/${id}` : '/api/apartamentos', {
-            method: id ? 'PUT' : 'POST',
-            body: JSON.stringify({ blocoId, numeroApto })
-        });
-        await carregarDados();
-        toast('Dados salvos com sucesso');
-        apartamentos();
-    } catch (error) {
-        showError(error);
+    let url = "/api/apartamentos";
+    let metodo = "POST";
+
+    if(id){
+        url = "/api/apartamentos/" + id;
+        metodo = "PUT";
     }
-}
 
-async function delApt(id) {
-    confirmBox('Deseja excluir este apartamento?', async () => {
-        try {
-            await api(`/api/apartamentos/${id}`, { method: 'DELETE' });
-            await carregarDados();
-            apartamentos();
-        } catch (error) {
-            showError(error);
+    let dados = {
+        blocoId: blocoId,
+        numeroApto: numeroApto
+    };
+
+    api(url, metodo, dados, function(erro){
+
+        if(erro){
+            mostrarErro(erro);
+            return;
         }
+
+        carregarDados(function(erro){
+
+            if(erro){
+                mostrarErro(erro);
+                return;
+            }
+
+            toast("Dados salvos com sucesso");
+            apartamentos("");
+
+        });
+
     });
+
 }
 
-/* =========================================================
-   MORADORES
-   ========================================================= */
+function delApt(id){
 
-function moradores(filter = '') {
-    const rows = db.moradores.filter(item => `${item.cpf} ${item.nome} ${item.telefone} ${item.apartamentoId}`
-        .toLowerCase()
-        .includes(filter.toLowerCase()));
+    if(!confirm("Deseja excluir este apartamento?")){
+        return;
+    }
 
-    shell(
-        'Pesquisar Morador',
-        `<div class="toolbar">
-            <input class="search" placeholder="Pesquisa" value="${esc(filter)}" oninput="moradores(this.value)">
-            <button class="btn primary" onclick="moradorForm('novo')">Novo morador</button>
+    api("/api/apartamentos/" + id, "DELETE", null, function(erro){
+
+        if(erro){
+            mostrarErro(erro);
+            return;
+        }
+
+        carregarDados(function(erro){
+
+            if(erro){
+                mostrarErro(erro);
+                return;
+            }
+
+            apartamentos("");
+
+        });
+
+    });
+
+}
+
+/* MORADORES */
+
+function moradores(filtro){
+
+    let saida = "";
+
+    for(let i = 0; i < db.moradores.length; i++){
+
+        let morador = db.moradores[i];
+
+        let texto = morador.cpf + " " + morador.nome + " " + morador.telefone + " " + morador.apartamentoId;
+
+        if(texto.toLowerCase().includes(filtro.toLowerCase())){
+
+            let numeroApartamento = "—";
+
+            for(let j = 0; j < db.apartamentos.length; j++){
+
+                if(db.apartamentos[j].id == morador.apartamentoId){
+                    numeroApartamento = db.apartamentos[j].numeroApto;
+                }
+
+            }
+
+            saida += `
+                <tr>
+
+                    <td>${esc(morador.cpf)}</td>
+
+                    <td onclick="moradorForm('consultar', ${morador.id})" style="cursor:pointer">
+                        ${esc(morador.nome)}
+                    </td>
+
+                    <td>${esc(morador.telefone)}</td>
+                    <td>${esc(numeroApartamento)}</td>
+
+                    <td>
+                        <button class="action" onclick="moradorForm('alterar', ${morador.id})">Alterar</button>
+                        <button class="action" onclick="delMorador(${morador.id})">Excluir</button>
+                    </td>
+
+                </tr>
+            `;
+
+        }
+
+    }
+
+    if(saida === ""){
+        saida = `<tr><td colspan="5" class="empty">Nenhum morador encontrado.</td></tr>`;
+    }
+
+    let conteudo = `
+        <div class="toolbar">
+            <input class="search" placeholder="Pesquisa" value="${esc(filtro)}" oninput="moradores(this.value)">
+            <button class="btn primary" onclick="moradorForm('novo', 0)">Novo morador</button>
             <button class="btn" onclick="route('Início')">Voltar</button>
         </div>
+
         <table>
-            <thead><tr><th>CPF</th><th>Nome</th><th>Telefone</th><th>Apartamento</th><th>Ações</th></tr></thead>
+
+            <thead>
+                <tr>
+                    <th>CPF</th>
+                    <th>Nome</th>
+                    <th>Telefone</th>
+                    <th>Apartamento</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+
             <tbody>
-                ${rows.map(item => `
-                    <tr>
-                        <td>${esc(item.cpf)}</td>
-                        <td onclick="moradorForm('consultar', ${item.id})" style="cursor:pointer">${esc(item.nome)}</td>
-                        <td>${esc(item.telefone)}</td>
-                        <td>${esc(db.apartamentos.find(a => a.id == item.apartamentoId)?.numeroApto || '—')}</td>
-                        <td>
-                            <button class="action" onclick="moradorForm('alterar', ${item.id})">Alterar</button>
-                            <button class="action" onclick="delMorador(${item.id})">Excluir</button>
-                        </td>
-                    </tr>
-                `).join('') || '<tr><td colspan="5" class="empty">Nenhum morador encontrado.</td></tr>'}
+                ${saida}
             </tbody>
-        </table>`
-    );
+
+        </table>
+    `;
+
+    shell("Pesquisar Morador", conteudo);
+
 }
 
-function moradorForm(mode, id) {
-    const morador = db.moradores.find(item => item.id == id) || {
-        cpf: '',
-        nome: '',
-        telefone: '',
-        apartamentoId: '',
-        responsavel: false,
-        proprietario: false,
-        possuiVeiculo: false,
-        quantidadeVagas: 0,
-        numeroVaga: '',
-        placa: '',
-        marca: '',
-        modelo: ''
-    };
-    const readOnly = mode === 'consultar';
-    const title = mode === 'novo' ? 'Cadastrar Morador' : mode === 'alterar' ? 'Alterar Morador' : 'Consultar Morador';
+function radio(nome, texto, valor, marcado, desabilitado){
 
-    shell(
-        title,
-        `<div class="form-grid">
-            <label>CPF:</label><input id="cpf" value="${esc(morador.cpf)}" ${readOnly ? 'disabled' : ''}>
-            <label>Nome:</label><input id="nome" value="${esc(morador.nome)}" ${readOnly ? 'disabled' : ''}>
-            <label>Telefone:</label><input id="telefone" value="${esc(morador.telefone)}" ${readOnly ? 'disabled' : ''}>
+    let checked = "";
+    let disabled = "";
+
+    if(marcado){
+        checked = "checked";
+    }
+
+    if(desabilitado){
+        disabled = "disabled";
+    }
+
+    return `
+        <label style="font-weight:400">
+            <input type="radio" name="${nome}" value="${valor}" ${checked} ${disabled}>
+            ${texto}
+        </label>
+    `;
+
+}
+
+function moradorForm(modo, id){
+
+    let morador = pegarMorador(id);
+
+    if(!morador){
+
+        morador = {
+            cpf: "",
+            nome: "",
+            telefone: "",
+            apartamentoId: "",
+            responsavel: false,
+            proprietario: false,
+            possuiVeiculo: false,
+            quantidadeVagas: 0,
+            numeroVaga: "",
+            placa: "",
+            marca: "",
+            modelo: ""
+        };
+
+    }
+
+    let desabilitado = false;
+
+    if(modo === "consultar"){
+        desabilitado = true;
+    }
+
+    let disabledTexto = "";
+
+    if(desabilitado){
+        disabledTexto = "disabled";
+    }
+
+    let titulo = "Cadastrar Morador";
+
+    if(modo === "alterar"){
+        titulo = "Alterar Morador";
+    }
+
+    if(modo === "consultar"){
+        titulo = "Consultar Morador";
+    }
+
+    let opcoes = "";
+
+    for(let i = 0; i < db.apartamentos.length; i++){
+
+        let apt = db.apartamentos[i];
+        let selecionado = "";
+
+        if(apt.id == morador.apartamentoId){
+            selecionado = "selected";
+        }
+
+        opcoes += `
+            <option value="${apt.id}" ${selecionado}>
+                ${esc(apt.numeroApto)} - ${esc(blocoName(apt.blocoId))}
+            </option>
+        `;
+
+    }
+
+    let botaoSalvar = "";
+
+    if(modo !== "consultar"){
+
+        let textoBotao = "Salvar";
+
+        if(modo === "novo"){
+            textoBotao = "Cadastrar";
+        }
+
+        botaoSalvar = `
+            <button class="btn primary" onclick="saveMorador(${id})">
+                ${textoBotao}
+            </button>
+        `;
+
+    }
+
+    let conteudo = `
+        <div class="form-grid">
+
+            <label>CPF:</label>
+            <input id="cpf" value="${esc(morador.cpf)}" ${disabledTexto}>
+
+            <label>Nome:</label>
+            <input id="nome" value="${esc(morador.nome)}" ${disabledTexto}>
+
+            <label>Telefone:</label>
+            <input id="telefone" value="${esc(morador.telefone)}" ${disabledTexto}>
 
             <label>Apartamento:</label>
-            <select id="apartamento" ${readOnly ? 'disabled' : ''}>
-                ${db.apartamentos.map(item => `<option value="${item.id}" ${item.id == morador.apartamentoId ? 'selected' : ''}>${esc(item.numeroApto)} - ${esc(blocoName(item.blocoId))}</option>`).join('')}
+            <select id="apartamento" ${disabledTexto}>
+                ${opcoes}
             </select>
 
             <label>Responsável pelo apartamento?</label>
-            <div class="radio-group">${radio('responsavel', 'Sim', true, morador.responsavel, readOnly)}${radio('responsavel', 'Não', false, !morador.responsavel, readOnly)}</div>
+            <div class="radio-group">
+                ${radio("responsavel", "Sim", true, Boolean(morador.responsavel), desabilitado)}
+                ${radio("responsavel", "Não", false, !Boolean(morador.responsavel), desabilitado)}
+            </div>
 
             <label>Proprietário do apartamento?</label>
-            <div class="radio-group">${radio('proprietario', 'Sim', true, morador.proprietario, readOnly)}${radio('proprietario', 'Não', false, !morador.proprietario, readOnly)}</div>
+            <div class="radio-group">
+                ${radio("proprietario", "Sim", true, Boolean(morador.proprietario), desabilitado)}
+                ${radio("proprietario", "Não", false, !Boolean(morador.proprietario), desabilitado)}
+            </div>
 
             <label>Possui veículo?</label>
-            <div class="radio-group">${radio('possuiVeiculo', 'Sim', true, morador.possuiVeiculo, readOnly)}${radio('possuiVeiculo', 'Não', false, !morador.possuiVeiculo, readOnly)}</div>
+            <div class="radio-group">
+                ${radio("possuiVeiculo", "Sim", true, Boolean(morador.possuiVeiculo), desabilitado)}
+                ${radio("possuiVeiculo", "Não", false, !Boolean(morador.possuiVeiculo), desabilitado)}
+            </div>
 
-            <label>Quantidade de vagas de garagem:</label><input id="qvagas" type="number" min="0" value="${esc(morador.quantidadeVagas)}" ${readOnly ? 'disabled' : ''}>
-            <label>Número da vaga:</label><input id="vaga" value="${esc(morador.numeroVaga)}" ${readOnly ? 'disabled' : ''}>
+            <label>Quantidade de vagas de garagem:</label>
+            <input id="qvagas" type="number" min="0" value="${esc(morador.quantidadeVagas)}" ${disabledTexto}>
 
-            <div class="full"><h2>Cadastrar Veículo</h2></div>
-            <label>Placa:</label><input id="placa" value="${esc(morador.placa)}" ${readOnly ? 'disabled' : ''}>
-            <label>Marca:</label><input id="marca" value="${esc(morador.marca)}" ${readOnly ? 'disabled' : ''}>
-            <label>Modelo:</label><input id="modelo" value="${esc(morador.modelo)}" ${readOnly ? 'disabled' : ''}>
+            <label>Número da vaga:</label>
+            <input id="vaga" value="${esc(morador.numeroVaga)}" ${disabledTexto}>
+
+            <div class="full">
+                <h2>Cadastrar Veículo</h2>
+            </div>
+
+            <label>Placa:</label>
+            <input id="placa" value="${esc(morador.placa)}" ${disabledTexto}>
+
+            <label>Marca:</label>
+            <input id="marca" value="${esc(morador.marca)}" ${disabledTexto}>
+
+            <label>Modelo:</label>
+            <input id="modelo" value="${esc(morador.modelo)}" ${disabledTexto}>
 
             <div class="full form-actions">
-                ${!readOnly ? `<button class="btn primary" onclick="saveMorador(${id || 0})">${mode === 'novo' ? 'Cadastrar' : 'Salvar'}</button>` : ''}
-                <button class="btn" onclick="moradores()">Voltar</button>
+                ${botaoSalvar}
+                <button class="btn" onclick="moradores('')">Voltar</button>
             </div>
-        </div>`
-    );
+
+        </div>
+    `;
+
+    shell(titulo, conteudo);
+
 }
 
-function radio(name, label, value, checked, disabled) {
-    return `<label style="font-weight:400"><input type="radio" name="${name}" value="${value}" ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''}> ${label}</label>`;
-}
+function saveMorador(id){
 
-async function saveMorador(id) {
-    const morador = {
-        cpf: document.getElementById('cpf').value.trim(),
-        nome: document.getElementById('nome').value.trim(),
-        telefone: document.getElementById('telefone').value.trim(),
-        apartamentoId: Number(document.getElementById('apartamento').value),
-        responsavel: document.querySelector('input[name=responsavel]:checked')?.value === 'true',
-        proprietario: document.querySelector('input[name=proprietario]:checked')?.value === 'true',
-        possuiVeiculo: document.querySelector('input[name=possuiVeiculo]:checked')?.value === 'true',
-        quantidadeVagas: Number(document.getElementById('qvagas').value || 0),
-        numeroVaga: document.getElementById('vaga').value.trim(),
-        placa: document.getElementById('placa').value.trim(),
-        marca: document.getElementById('marca').value.trim(),
-        modelo: document.getElementById('modelo').value.trim()
+    let responsavel = document.querySelector("input[name=responsavel]:checked");
+    let proprietario = document.querySelector("input[name=proprietario]:checked");
+    let possuiVeiculo = document.querySelector("input[name=possuiVeiculo]:checked");
+
+    let morador = {
+        cpf: document.getElementById("cpf").value.trim(),
+        nome: document.getElementById("nome").value.trim(),
+        telefone: document.getElementById("telefone").value.trim(),
+        apartamentoId: Number(document.getElementById("apartamento").value),
+        responsavel: responsavel && responsavel.value === "true",
+        proprietario: proprietario && proprietario.value === "true",
+        possuiVeiculo: possuiVeiculo && possuiVeiculo.value === "true",
+        quantidadeVagas: Number(document.getElementById("qvagas").value || 0),
+        numeroVaga: document.getElementById("vaga").value.trim(),
+        placa: document.getElementById("placa").value.trim(),
+        marca: document.getElementById("marca").value.trim(),
+        modelo: document.getElementById("modelo").value.trim()
     };
 
-    if (!morador.cpf || !morador.nome || !morador.telefone || !morador.apartamentoId) {
-        toast('Dados obrigatórios não informados');
+    if(!morador.cpf || !morador.nome || !morador.telefone || !morador.apartamentoId){
+        toast("Dados obrigatórios não informados");
         return;
     }
 
-    try {
-        await api(id ? `/api/moradores/${id}` : '/api/moradores', {
-            method: id ? 'PUT' : 'POST',
-            body: JSON.stringify(morador)
-        });
-        await carregarDados();
-        toast('Dados salvos com sucesso');
-        moradores();
-    } catch (error) {
-        showError(error);
+    let url = "/api/moradores";
+    let metodo = "POST";
+
+    if(id){
+        url = "/api/moradores/" + id;
+        metodo = "PUT";
     }
-}
 
-async function delMorador(id) {
-    confirmBox('Deseja excluir este morador?', async () => {
-        try {
-            await api(`/api/moradores/${id}`, { method: 'DELETE' });
-            await carregarDados();
-            moradores();
-        } catch (error) {
-            showError(error);
+    api(url, metodo, morador, function(erro){
+
+        if(erro){
+            mostrarErro(erro);
+            return;
         }
+
+        carregarDados(function(erro){
+
+            if(erro){
+                mostrarErro(erro);
+                return;
+            }
+
+            toast("Dados salvos com sucesso");
+            moradores("");
+
+        });
+
     });
+
 }
 
-/* =========================================================
-   PAGAMENTOS
-   ========================================================= */
+function delMorador(id){
 
-function pagamento() {
-    shell(
-        'Registrar Pagamento',
-        `<div class="form-grid">
-            <label>Apartamento:</label><input id="pApt" onblur="carregarAptPagamento()" placeholder="Ex.: 101">
-            <label>CPF:</label><input id="pCpf" disabled>
-            <label>Morador:</label><input id="pNome" disabled>
-            <label>Telefone:</label><input id="pTel" disabled>
+    if(!confirm("Deseja excluir este morador?")){
+        return;
+    }
+
+    api("/api/moradores/" + id, "DELETE", null, function(erro){
+
+        if(erro){
+            mostrarErro(erro);
+            return;
+        }
+
+        carregarDados(function(erro){
+
+            if(erro){
+                mostrarErro(erro);
+                return;
+            }
+
+            moradores("");
+
+        });
+
+    });
+
+}
+
+/* PAGAMENTO */
+
+function pagamento(){
+
+    let opcoes = "";
+
+    for(let i = 0; i < db.referencias.length; i++){
+
+        opcoes += `
+            <option value="${db.referencias[i].id}">
+                ${esc(db.referencias[i].mesReferencia)}/${db.referencias[i].anoReferencia}
+            </option>
+        `;
+
+    }
+
+    let conteudo = `
+        <div class="form-grid">
+
+            <label>Apartamento:</label>
+            <input id="pApt" onblur="carregarAptPagamento()" placeholder="Ex.: 101">
+
+            <label>CPF:</label>
+            <input id="pCpf" disabled>
+
+            <label>Morador:</label>
+            <input id="pNome" disabled>
+
+            <label>Telefone:</label>
+            <input id="pTel" disabled>
+
             <label>Mês/Ano Referência:</label>
             <select id="ref" onchange="carregarReferencia()">
-                ${db.referencias.map(item => `<option value="${item.id}">${esc(item.mesReferencia)}/${item.anoReferencia}</option>`).join('')}
+                ${opcoes}
             </select>
-            <label>Valor:</label><input id="pValor" disabled>
-            <label>Vencimento:</label><input id="pVenc" disabled>
+
+            <label>Valor:</label>
+            <input id="pValor" disabled>
+
+            <label>Vencimento:</label>
+            <input id="pVenc" disabled>
+
             <div class="full form-actions">
                 <button class="btn primary" onclick="pagar()">Pagar</button>
                 <button class="btn" onclick="route('Início')">Voltar</button>
             </div>
-        </div>`
-    );
+
+        </div>
+    `;
+
+    shell("Registrar Pagamento", conteudo);
 
     carregarReferencia();
+
 }
 
-function carregarAptPagamento() {
-    const apartamento = aptByNumber(document.getElementById('pApt').value.trim());
+function carregarAptPagamento(){
 
-    if (!apartamento) {
-        document.getElementById('pCpf').value = '';
-        document.getElementById('pNome').value = '';
-        document.getElementById('pTel').value = '';
-        toast('Apartamento não cadastrado');
+    let numero = document.getElementById("pApt").value.trim();
+    let apartamento = aptByNumber(numero);
+
+    if(!apartamento){
+
+        document.getElementById("pCpf").value = "";
+        document.getElementById("pNome").value = "";
+        document.getElementById("pTel").value = "";
+
+        toast("Apartamento não cadastrado");
+
         return;
     }
 
-    const morador = db.moradores.find(item => item.apartamentoId === apartamento.id);
+    let morador = null;
 
-    if (!morador) {
-        document.getElementById('pCpf').value = '';
-        document.getElementById('pNome').value = '';
-        document.getElementById('pTel').value = '';
+    for(let i = 0; i < db.moradores.length; i++){
+
+        if(db.moradores[i].apartamentoId == apartamento.id){
+            morador = db.moradores[i];
+            break;
+        }
+
+    }
+
+    if(!morador){
+
+        document.getElementById("pCpf").value = "";
+        document.getElementById("pNome").value = "";
+        document.getElementById("pTel").value = "";
+
         return;
     }
 
-    document.getElementById('pCpf').value = morador.cpf;
-    document.getElementById('pNome').value = morador.nome;
-    document.getElementById('pTel').value = morador.telefone;
+    document.getElementById("pCpf").value = morador.cpf;
+    document.getElementById("pNome").value = morador.nome;
+    document.getElementById("pTel").value = morador.telefone;
+
 }
 
-function carregarReferencia() {
-    const referencia = db.referencias.find(item => item.id == Number(document.getElementById('ref').value));
+function carregarReferencia(){
 
-    if (!referencia) return;
+    let select = document.getElementById("ref");
 
-    document.getElementById('pValor').value = Number(referencia.valorCondominio).toFixed(2).replace('.', ',');
-    document.getElementById('pVenc').value = String(referencia.vencimento).slice(0, 10);
-}
-
-async function pagar() {
-    const numeroApto = document.getElementById('pApt').value.trim();
-    const referenciaId = Number(document.getElementById('ref').value);
-
-    if (!aptByNumber(numeroApto)) {
-        toast('Apartamento não cadastrado');
+    if(!select){
         return;
     }
 
-    try {
-        await api('/api/pagamentos', {
-            method: 'POST',
-            body: JSON.stringify({ numeroApto, referenciaId })
+    let id = Number(select.value);
+    let referencia = null;
+
+    for(let i = 0; i < db.referencias.length; i++){
+
+        if(db.referencias[i].id == id){
+            referencia = db.referencias[i];
+            break;
+        }
+
+    }
+
+    if(!referencia){
+        return;
+    }
+
+    document.getElementById("pValor").value =
+        Number(referencia.valorCondominio).toFixed(2).replace(".", ",");
+
+    document.getElementById("pVenc").value =
+        String(referencia.vencimento).slice(0, 10);
+
+}
+
+function pagar(){
+
+    let numeroApto = document.getElementById("pApt").value.trim();
+    let referenciaId = Number(document.getElementById("ref").value);
+
+    if(!aptByNumber(numeroApto)){
+        toast("Apartamento não cadastrado");
+        return;
+    }
+
+    let dados = {
+        numeroApto: numeroApto,
+        referenciaId: referenciaId
+    };
+
+    api("/api/pagamentos", "POST", dados, function(erro){
+
+        if(erro){
+            mostrarErro(erro);
+            return;
+        }
+
+        carregarDados(function(erro){
+
+            if(erro){
+                mostrarErro(erro);
+                return;
+            }
+
+            toast("Pagamento registrado com sucesso");
+            route("Início");
+
         });
-        await carregarDados();
-        toast('Pagamento registrado com sucesso');
-        route('Início');
-    } catch (error) {
-        showError(error);
-    }
+
+    });
+
 }
 
-/* =========================================================
-   MANUTENÇÃO
-   ========================================================= */
+/* MANUTENCAO */
 
-function manutencaoMenu() {
-    shell(
-        'Manutenção',
-        `<div class="dashboard">
+function manutencaoMenu(){
+
+    let conteudo = `
+        <div class="dashboard">
+
             <div class="tile" onclick="tiposManutencao()">
                 <h3>Tipos de Manutenção</h3>
                 <p>Cadastrar e consultar tipos.</p>
             </div>
+
             <div class="tile" onclick="registrarManutencao()">
                 <h3>Registrar Manutenção</h3>
                 <p>Registrar uma manutenção realizada.</p>
             </div>
+
         </div>
-        <div class="form-actions"><button class="btn" onclick="route('Início')">Voltar</button></div>`
-    );
+
+        <div class="form-actions">
+            <button class="btn" onclick="route('Início')">Voltar</button>
+        </div>
+    `;
+
+    shell("Manutenção", conteudo);
+
 }
 
-function tiposManutencao() {
-    shell(
-        'Cadastrar Tipo de Manutenção',
-        `<div class="toolbar">
+function tiposManutencao(){
+
+    let linhas = "";
+
+    for(let i = 0; i < db.tiposManutencao.length; i++){
+
+        linhas += `
+            <tr>
+                <td>${esc(db.tiposManutencao[i])}</td>
+            </tr>
+        `;
+
+    }
+
+    if(linhas === ""){
+        linhas = `<tr><td class="empty">Nenhum tipo cadastrado.</td></tr>`;
+    }
+
+    let conteudo = `
+        <div class="toolbar">
+
             <input id="tipo" placeholder="Descrição da manutenção">
-            <button class="btn primary" onclick="addTipo()">Cadastrar</button>
-            <button class="btn" onclick="manutencaoMenu()">Voltar</button>
+
+            <button class="btn primary" onclick="addTipo()">
+                Cadastrar
+            </button>
+
+            <button class="btn" onclick="manutencaoMenu()">
+                Voltar
+            </button>
+
         </div>
+
         <table>
-            <thead><tr><th>Tipos cadastrados</th></tr></thead>
+
+            <thead>
+                <tr>
+                    <th>Tipos cadastrados</th>
+                </tr>
+            </thead>
+
             <tbody>
-                ${db.tiposManutencao.map(tipo => `<tr><td>${esc(tipo)}</td></tr>`).join('') || '<tr><td class="empty">Nenhum tipo cadastrado.</td></tr>'}
+                ${linhas}
             </tbody>
-        </table>`
-    );
+
+        </table>
+    `;
+
+    shell("Cadastrar Tipo de Manutenção", conteudo);
+
 }
 
-async function addTipo() {
-    const descricao = document.getElementById('tipo').value.trim();
+function addTipo(){
 
-    if (!descricao) {
-        toast('Descrição obrigatória');
+    let descricao = document.getElementById("tipo").value.trim();
+
+    if(!descricao){
+        toast("Descrição obrigatória");
         return;
     }
 
-    try {
-        await api('/api/tipos-manutencao', {
-            method: 'POST',
-            body: JSON.stringify({ descricao })
-        });
-        await carregarDados();
-        toast('Dados salvos com sucesso');
-        tiposManutencao();
-    } catch (error) {
-        showError(error);
-    }
+    api(
+        "/api/tipos-manutencao",
+        "POST",
+        { descricao: descricao },
+        function(erro){
+
+            if(erro){
+                mostrarErro(erro);
+                return;
+            }
+
+            carregarDados(function(erro){
+
+                if(erro){
+                    mostrarErro(erro);
+                    return;
+                }
+
+                toast("Dados salvos com sucesso");
+                tiposManutencao();
+
+            });
+
+        }
+    );
+
 }
 
-function registrarManutencao() {
-    shell(
-        'Registrar Manutenção',
-        `<div class="form-grid">
+function registrarManutencao(){
+
+    let opcoes = "";
+
+    for(let i = 0; i < db.tiposManutencao.length; i++){
+
+        opcoes += `
+            <option>${esc(db.tiposManutencao[i])}</option>
+        `;
+
+    }
+
+    let linhas = "";
+
+    for(let i = 0; i < db.manutencoes.length; i++){
+
+        linhas += `
+            <tr>
+                <td>${esc(db.manutencoes[i].tipo)}</td>
+                <td>${esc(String(db.manutencoes[i].data).slice(0, 10))}</td>
+                <td>${esc(db.manutencoes[i].local)}</td>
+            </tr>
+        `;
+
+    }
+
+    if(linhas === ""){
+        linhas = `
+            <tr>
+                <td colspan="3" class="empty">
+                    Nenhuma manutenção registrada.
+                </td>
+            </tr>
+        `;
+    }
+
+    let conteudo = `
+        <div class="form-grid">
+
             <label>Tipo de manutenção:</label>
-            <select id="mTipo">${db.tiposManutencao.map(tipo => `<option>${esc(tipo)}</option>`).join('')}</select>
-            <label>Data:</label><input id="mData" type="date">
-            <label>Local:</label><input id="mLocal" placeholder="Local da manutenção">
+            <select id="mTipo">
+                ${opcoes}
+            </select>
+
+            <label>Data:</label>
+            <input id="mData" type="date">
+
+            <label>Local:</label>
+            <input id="mLocal" placeholder="Local da manutenção">
+
             <div class="full form-actions">
                 <button class="btn primary" onclick="saveManutencao()">Cadastrar</button>
                 <button class="btn" onclick="manutencaoMenu()">Voltar</button>
             </div>
+
         </div>
+
         <h2 style="margin-top:30px">Manutenções registradas</h2>
+
         <table>
-            <thead><tr><th>Tipo</th><th>Data</th><th>Local</th></tr></thead>
+
+            <thead>
+                <tr>
+                    <th>Tipo</th>
+                    <th>Data</th>
+                    <th>Local</th>
+                </tr>
+            </thead>
+
             <tbody>
-                ${db.manutencoes.map(item => `
-                    <tr><td>${esc(item.tipo)}</td><td>${esc(String(item.data).slice(0, 10))}</td><td>${esc(item.local)}</td></tr>
-                `).join('') || '<tr><td colspan="3" class="empty">Nenhuma manutenção registrada.</td></tr>'}
+                ${linhas}
             </tbody>
-        </table>`
-    );
+
+        </table>
+    `;
+
+    shell("Registrar Manutenção", conteudo);
+
 }
 
-async function saveManutencao() {
-    const tipo = document.getElementById('mTipo').value;
-    const data = document.getElementById('mData').value;
-    const local = document.getElementById('mLocal').value.trim();
+function saveManutencao(){
 
-    if (!tipo || !data || !local) {
-        toast('Dados obrigatórios não informados');
+    let tipo = document.getElementById("mTipo").value;
+    let data = document.getElementById("mData").value;
+    let local = document.getElementById("mLocal").value.trim();
+
+    if(!tipo || !data || !local){
+        toast("Dados obrigatórios não informados");
         return;
     }
 
-    try {
-        await api('/api/manutencoes', {
-            method: 'POST',
-            body: JSON.stringify({ tipo, data, local })
+    let dados = {
+        tipo: tipo,
+        data: data,
+        local: local
+    };
+
+    api("/api/manutencoes", "POST", dados, function(erro){
+
+        if(erro){
+            mostrarErro(erro);
+            return;
+        }
+
+        carregarDados(function(erro){
+
+            if(erro){
+                mostrarErro(erro);
+                return;
+            }
+
+            toast("Dados salvos com sucesso");
+            registrarManutencao();
+
         });
-        await carregarDados();
-        toast('Dados salvos com sucesso');
-        registrarManutencao();
-    } catch (error) {
-        showError(error);
-    }
+
+    });
+
 }
 
-/* =========================================================
-   INICIALIZAÇÃO
-   ========================================================= */
+/* INICIAR */
 
-async function iniciarSistema() {
-    try {
-        await carregarDados();
+function iniciarSistema(){
+    
+    carregarDados(function(erro){
+
+        if(erro){
+            console.log(erro);
+
+            shell(
+                "Erro ao iniciar o sistema",
+                `
+                    <p>Não foi possível carregar os dados do servidor.</p>
+                    <p>Verifique se o Node.js está executando e se o MySQL está disponível.</p>
+                    <button class="btn primary" onclick="location.reload()">Tentar novamente</button>
+                `
+            );
+
+            return;
+        }
+
         renderNav();
-        route('Início');
-    } catch (error) {
-        console.error(error);
-        shell(
-            'Erro ao iniciar o sistema',
-            `<p>Não foi possível carregar os dados do servidor.</p>
-             <p>Verifique se o Node.js está executando e se o MySQL está disponível.</p>
-             <button class="btn primary" onclick="location.reload()">Tentar novamente</button>`
-        );
-    }
+        route("Início");
+    });
 }
 
 iniciarSistema();
