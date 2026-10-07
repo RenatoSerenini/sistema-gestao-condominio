@@ -1,4 +1,5 @@
 const mysql = require("mysql2");
+<<<<<<< HEAD
 
 const conexao = mysql.createConnection({
     host: "localhost",
@@ -6,15 +7,14 @@ const conexao = mysql.createConnection({
     password: "root",
     database: "sistema_condominio"
 });
+=======
+>>>>>>> b587842 (corrigindo estrutura pt2)
 
-const pool = mysql.createPool({
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || 'root',
-    database: process.env.DB_NAME || 'sistema_condominio',
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
+const conexao = mysql.createConnection({
+    host: "localhost",
+    user: "root",
+    password: "root",
+    database: "sistema_condominio"
 });
 
 conexao.connect(function(erro) {
@@ -28,4 +28,8 @@ conexao.connect(function(erro) {
 
 });
 
+<<<<<<< HEAD
 module.exports = conexao;
+=======
+module.exports = conexao;
+>>>>>>> b587842 (corrigindo estrutura pt2)
